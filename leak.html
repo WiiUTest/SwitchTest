@@ -32,6 +32,10 @@ function recv()
 function log (msg) {
   send(msg === undefined ? 'undefined' : "[log] "+msg.toString())
 }
+
+function debug (msg) {
+  send(msg === undefined ? 'undefined' : "[deb] "+msg.toString())
+}
  
 
 //--------------------Leak---------------------------------//
@@ -382,6 +386,10 @@ function check8(value)
     return false;
 }
 
+nullptr = function nullptr(addr) {
+  return addr[0] == 0 && addr[1] == 0;
+}
+
 
 
 getBase = function() {
@@ -403,62 +411,62 @@ getBase = function() {
 };
 
 walkList = function() {
-  var addr = this.base;
-  utils.dlog('Initial NRO at ' + utils.paddr(addr));
+  var addr = base;
+  debug('Initial NRO at ' + paddr(addr));
 
   while(true) {
     var baddr = addr;
 
-    var modoff = this.read4(addr, 1);
-    addr = utils.add2(addr, modoff);
-    var modstr = this.read4(addr, 6);
-    addr = utils.add2(addr, modstr);
+    var modoff = read4(addr, 1);
+    addr = add2(addr, modoff);
+    var modstr = read4(addr, 6);
+    addr = add2(addr, modstr);
 
     // Read next link ptr
-    addr = this.read8(addr);
-    if(utils.nullptr(addr)) {
-      utils.log('Reached end');
+    addr = read8(addr);
+    if(nullptr(addr)) {
+      log('Reached end');
       break;
     }
 
-    var nro = this.read8(addr, 8);
+    var nro = read8(addr, 8);
 
-    if(utils.nullptr(nro)) {
-      utils.dlog('Hit RTLD at ' + utils.paddr(addr));
-      addr = this.read8(addr, 4);
+    if(nullptr(nro)) {
+      debug('Hit RTLD at ' + paddr(addr));
+      addr = read8(addr, 4);
       break;
     }
 
-    if(this.read4(nro, 4) != 0x304f524e) {
-      utils.log('Something is wrong.  No NRO header at base.');
+    if(read4(nro, 4) != 0x304f524e) {
+      log('Something is wrong.  No NRO header at base.');
       break;
     }
 
     addr = nro;
-    utils.dlog('Found NRO at ' + utils.paddr(nro));
+    debug('Found NRO at ' + paddr(nro));
   }
 
   while(true) {
-    var nro = this.read8(addr, 8);
-    if(utils.nullptr(nro)) {
-      utils.dlog('Hm, hit the end of things.  Back in rtld?');
+    var nro = read8(addr, 8);
+    if(nullptr(nro)) {
+      debug('Hm, hit the end of things.  Back in rtld?');
       return;
     }
 
-    if(this.read4(nro, this.read4(nro, 1) >> 2) == 0x30444f4d) {
-      utils.dlog('Got MOD at ' + utils.paddr(nro));
-      if(this.read4(nro, 4) == 0x8DCDF8 && this.read4(nro, 5) == 0x959620) {
-        utils.dlog('Found main module.');
+    if(read4(nro, read4(nro, 1) >> 2) == 0x30444f4d) {
+      debug('Got MOD at ' + paddr(nro));
+      if(read4(nro, 4) == 0x8DCDF8 && read4(nro, 5) == 0x959620) {
+        debug('Found main module.');
         return nro;
       }
     } else {
-      utils.dlog('No valid MOD header.  Back at RTLD.');
+      debug('No valid MOD header.  Back at RTLD.');
       break;
     }
 
-    addr = this.read8(addr, 0);
-    if(utils.nullptr(addr)) {
-      utils.dlog('End of chain.');
+    addr = read8(addr, 0);
+    if(nullptr(addr)) {
+      debug('End of chain.');
       break;
     }
   }
@@ -487,6 +495,7 @@ function loadRun (obj)
     //send("alertAddr: " + convert8(getAddr(alert)));
     
     base = getBase();
+    walkList();
     
     while(true)
     {
