@@ -388,17 +388,22 @@ function check8(value)
     return false;
 }
 
-nullptr = function nullptr(addr) {
+function nullptr(addr) {
   return addr[0] == 0 && addr[1] == 0;
 }
 
 
+function eq(a, b){
+    return a[0] == b[0] && a[1] == b[1];
+}
+
+var funcaddr = null;
+var func = document.getElementById;
 
 getBase = function() {
 
     func = document.getElementById;
     func.apply(document, ['']); // Ensure the func pointer is cached at 8:9
-    funcaddr = null;
     //2.3.0
     funcbase = 0x8365B8; // This is the base address for getElementById in the webkit module
   
@@ -488,6 +493,9 @@ function loadRun (obj)
     log("Connected\n");
     
     base = getBase();
+    
+    log("funcaddr: "+ convert8(funcaddr));    
+    
     walkList();
     
     
@@ -499,7 +507,6 @@ function loadRun (obj)
     log("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
     log("cleanTrack: " + convert8(getAddr(objM.track)));
     log("vict: " + convert8(getAddr(vict)));
-    
     
     while(true)
     {
@@ -571,6 +578,19 @@ function loadRun (obj)
                 send(output, filename);
             }
             log("dump2file: OK");
+        }else if(cmd == "search8"){
+            var source = parse8(extend8(args[1]));
+            var value = parse8(extend8(args[2]));
+            var count = parseInt(args[3]);
+            //debug("search8: "+count);
+            for(var i=0; i<count; i++){
+                readval = read8(add2(source, i*8))
+                //debug(convert8(value)+" = "+convert8(readval));
+                if(eq(readval, value)){
+                    log("found at : "+convert8(add2(source, i*8)));
+                }
+            }
+            log("search8: OK");
         }else{
             send("unknow cmd");
         }
