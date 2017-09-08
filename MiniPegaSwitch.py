@@ -18,6 +18,7 @@ import cgi
 import sys
 import shutil
 import mimetypes
+import binascii
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -73,7 +74,15 @@ class SimpleHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_POST(self):
         """Serve a POST request."""
         content_len = int(self.headers.getheader("content-length"))
-        print self.rfile.read(content_len)
+        if self.path == "/log":
+            print self.rfile.read(content_len)
+        else:
+            print ".",
+            content = binascii.unhexlify(self.rfile.read(content_len))
+            path = self.translate_path(self.path)
+            f = open(path, "a+b")
+            f.write(content)
+            f.close()
         self.send_response(200)
         self.end_headers()
         self.wfile.write("")

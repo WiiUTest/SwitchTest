@@ -3,12 +3,13 @@
 
 //--------------------------Log---------------------------//
 var req = null;
-function send(data)
+function send(data, filename)
 {
+    if (typeof(filename)==='undefined') filename = "log";
     if(req == null){
         req = new XMLHttpRequest();
     }
-    req.open("POST", "/log", false);
+    req.open("POST", "/"+filename, false);
     req.send(data)
 }
 
@@ -529,8 +530,7 @@ function loadRun (obj)
             if(check8(args[1]) == false || args[2] == undefined){
                 send("dump: invalid parameters");
             }else{
-                var addr = extend8(args[1]);
-                addr = parse8(addr);
+                var addr = parse8(extend8(args[1]));
                 var str = "";
                 for(var i=0; i<parseInt(args[2]); i++){
                     str += i+" "+convert8(add2(addr, i*8))+" : "+convert8(read8(add2(addr, i*8)))+"\n";
@@ -556,6 +556,18 @@ function loadRun (obj)
         }else if(cmd == "exit"){
             send("bye bye !");
             break;
+        }else if(cmd == "dump2file"){
+            var source = parse8(extend8(args[1]));
+            var filename = extend8(args[1])+".bin";
+            var count = parseInt(args[2]);
+            for(var i=0; i<count/512; i++){
+                var output = "";
+                for(var j=0; j<512; j++){
+                    var val = convert8(read8(add2(source, (i*512)+(j*8))));
+                    output += val;
+                }
+                send(output, filename);
+            }
         }else{
             send("unknow cmd");
         }
