@@ -561,13 +561,16 @@ function loadRun (obj)
             var filename = extend8(args[1])+".bin";
             var count = parseInt(args[2]);
             for(var i=0; i<count/512; i++){
+                var page = add2(source, (i*512))
+                log(convert8(page));
                 var output = "";
                 for(var j=0; j<512; j++){
-                    var val = convert8(read8(add2(source, (i*512)+(j*8))));
+                    var val = convert8(read8(add2(page, j*8)));
                     output += val;
                 }
                 send(output, filename);
             }
+            log("dump2file: OK");
         }else{
             send("unknow cmd");
         }

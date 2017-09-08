@@ -77,7 +77,6 @@ class SimpleHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         if self.path == "/log":
             print self.rfile.read(content_len)
         else:
-            print ".",
             content = binascii.unhexlify(self.rfile.read(content_len))
             path = self.translate_path(self.path)
             f = open(path, "a+b")
