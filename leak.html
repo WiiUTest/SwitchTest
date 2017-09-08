@@ -504,6 +504,8 @@ function loadRun (obj)
     v.appendChild(document.createElement("track"));
     v.textTracks[0].addRegion(objM);
     
+    log("corruptedRegion: " + convert8(getAddr(vrs[0])));
+    log("cleanRegion: " + convert8(getAddr(objM)));
     log("corruptedTrack: " + convert8(getAddr(vrs[0].track)));
     log("cleanTrack: " + convert8(getAddr(objM.track)));
     log("vict: " + convert8(getAddr(vict)));
@@ -564,28 +566,31 @@ function loadRun (obj)
             send("bye bye !");
             break;
         }else if(cmd == "dump2file"){
-            var source = parse8(extend8(args[1]));
+            var page = parse8(extend8(args[1]));
             var filename = extend8(args[1])+".bin";
-            var count = parseInt(args[2]);
-            for(var i=0; i<count/512; i++){
-                var page = add2(source, (i*512))
-                log(convert8(page));
-                var output = "";
-                for(var j=0; j<512; j++){
-                    var val = convert8(read8(add2(page, j*8)));
-                    output += val;
+            var pagenumber = parseInt(args[2]);
+            
+            var arbuff = new ArrayBuffer(4096);
+            var u32buff = new Uint32Array(arbuff);
+                
+            for(var i=0; i<pagenumber; i++){
+                log("dumping page "+i+" at "+convert8(page));
+                //retrieve the page
+                for(var j=0; j<1024; j++){
+                    u32buff[j] = read4(add2(page, j*4));
                 }
-                send(output, filename);
+                //send the page
+                send(u32buff, filename);
+                //next page
+                page = add2(page, 4096)
             }
             log("dump2file: OK");
         }else if(cmd == "search8"){
             var source = parse8(extend8(args[1]));
             var value = parse8(extend8(args[2]));
             var count = parseInt(args[3]);
-            //debug("search8: "+count);
             for(var i=0; i<count; i++){
                 readval = read8(add2(source, i*8))
-                //debug(convert8(value)+" = "+convert8(readval));
                 if(eq(readval, value)){
                     log("found at : "+convert8(add2(source, i*8)));
                 }
