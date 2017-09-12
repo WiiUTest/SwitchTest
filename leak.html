@@ -843,7 +843,7 @@ function svcConnectToNamedPort(uPortName)
 {
     var pPortName = malloc(0x10);
     var hService = [0xFFFFFFFF, 0xFFFFFFFF];
-    write4(uPortName, pPortName);
+    write8(uPortName, pPortName);
     var pHandle = malloc(0x10);
     var bResult = call(0x3BBF70, [pHandle, pPortName]);
     if(eq(bResult, [0,0])){
@@ -893,18 +893,25 @@ function loadRun (obj)
     log("vict: " + convert8(getAddr(vict)));
     
 
-    hService = svcConnectToNamedPort(0x003a6d73); //sm:
-    
+    hService = svcConnectToNamedPort(parse8("00000000003a6d73")); //sm:
+    log(hService);
     
     //Example of call
     pBuffer = malloc(0x1000);
     
-    write4(0x00000004, add2(pBuffer, 0x00));
-    write4(0x8000000A, add2(pBuffer, 0x04));
-    write4(0x00000001, add2(pBuffer, 0x08));
-    write4(0x49434653, add2(pBuffer, 0x20));
+    write4(0x00000004, add2(pBuffer, 0x00)); //Request
+    write4(0x80000020, add2(pBuffer, 0x04)); //Handle  Size
+    write4(0x00000001, add2(pBuffer, 0x08)); //GetService
+    write4(0x49434653, add2(pBuffer, 0x20)); //SFCI
+    write4(0x753a6c70, add2(pBuffer, 0x30)); //Servicename
         
     log(svcSendSyncRequestWithUserBuffer(hService, pBuffer, 0x1000));
+    
+    var str = "";
+    for(var i=0; i<0x10; i++){
+        str += i+" "+convert8(add2(pBuffer, i*8))+" : "+convert8(read8(add2(pBuffer, i*8)))+"\n";
+    }
+    send(str)
         
     free(pBuffer);
     
